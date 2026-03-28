@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         划词翻译 → Obsidian
-// @namespace    https://github.com/your-username
+// @namespace    https://github.com/MAOewoqwq
 // @version      1.0
 // @description  划选文字自动翻译并保存到 Obsidian 笔记
 // @match        *://*/*
