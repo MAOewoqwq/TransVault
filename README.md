@@ -142,7 +142,7 @@ TransVault 用于解决：划选即翻译，一键存入 Obsidian，自动按日
 
 ### 5. 配置脚本
 
-在 Tampermonkey 中打开脚本编辑器，找到顶部的 `CONFIG` 配置区域（第 16-33 行）。
+在 Tampermonkey 中打开脚本编辑器，找到顶部的 `CONFIG` 配置区域（第 17-34 行）。
 
 **必须填写：**
 
@@ -261,6 +261,18 @@ TransVault/
 - 确认 Tampermonkey 已启用，且脚本开关打开
 - 在扩展详情页确认「允许运行用户脚本」已开启
 - 刷新页面后重试
+- 部分网站可能因为技术实现原因导致划词翻译无法正常触发（见下方「网站兼容性说明」）
+
+**Q: 在某些网站上划词没有反应？**
+
+部分现代 Web 应用使用了 Shadow DOM、`stopPropagation()` 等技术，可能会阻止脚本检测到文字选中事件。TransVault 已使用 `selectionchange` 事件来尽可能兼容这类网站，但在极少数情况下仍可能失效。这类网站的共同特征包括：
+
+- 使用 Web Components / Shadow DOM 渲染内容（如 Google Gemini、部分 Google 产品）
+- 在鼠标事件上调用了 `stopPropagation()` 或 `preventDefault()`
+- 使用 `user-select: none` CSS 属性禁止了文字选中
+- 内容渲染在 iframe 中且受同源策略限制
+
+如果你在某个网站上遇到划词无反应的情况，以上是可能的原因。
 
 **Q: 翻译成功但保存失败？**
 - 确认 Obsidian 已打开，Local REST API 插件已启用

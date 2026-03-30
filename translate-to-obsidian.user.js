@@ -6,6 +6,7 @@
 // @match        *://*/*
 // @grant        GM_xmlhttpRequest
 // @connect      translate.googleapis.com
+// @connect      translate.google.com
 // @connect      127.0.0.1
 // ==/UserScript==
 
@@ -42,7 +43,10 @@
         <span id="trans-obsidian-close">✕</span>
       </div>
       <div id="trans-obsidian-body">
-        <div id="trans-obsidian-original"></div>
+        <div class="trans-obsidian-row">
+          <div id="trans-obsidian-original"></div>
+          <button class="trans-obsidian-speak" id="trans-obsidian-speak-orig" title="朗读原文">🔊</button>
+        </div>
         <hr style="border:none;border-top:1px solid #eee;margin:6px 0;">
         <div id="trans-obsidian-result">翻译中...</div>
       </div>
@@ -124,6 +128,25 @@
         font-size: 12px;
         color: #999;
       }
+      .trans-obsidian-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      .trans-obsidian-row > div { flex: 1; }
+      .trans-obsidian-speak {
+        flex-shrink: 0;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 16px;
+        padding: 0 2px;
+        line-height: 1;
+        opacity: 0.5;
+        transition: opacity 0.2s;
+      }
+      .trans-obsidian-speak:hover { opacity: 1; }
+      .trans-obsidian-speak.speaking { opacity: 1; }
     `;
 
     document.head.appendChild(style);
@@ -286,6 +309,45 @@
     });
   }
 
+  // ============ 朗读 (Google Translate TTS) ============
+  let currentAudio = null;
+
+  function speakText(text, lang, btn) {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+
+    btn.classList.add('speaking');
+
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(text)}`;
+
+    GM_xmlhttpRequest({
+      method: 'GET',
+      url: ttsUrl,
+      responseType: 'blob',
+      onload: (res) => {
+        const blobUrl = URL.createObjectURL(res.response);
+        const audio = new Audio(blobUrl);
+        currentAudio = audio;
+        audio.onended = () => {
+          btn.classList.remove('speaking');
+          URL.revokeObjectURL(blobUrl);
+          currentAudio = null;
+        };
+        audio.onerror = () => {
+          btn.classList.remove('speaking');
+          URL.revokeObjectURL(blobUrl);
+          currentAudio = null;
+        };
+        audio.play();
+      },
+      onerror: () => {
+        btn.classList.remove('speaking');
+      },
+    });
+  }
+
   // ============ 主逻辑 ============
   const popup = createPopup();
   const elOriginal = popup.querySelector('#trans-obsidian-original');
@@ -307,22 +369,57 @@
   }
 
   function hidePopup() {
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
     popup.style.display = 'none';
     elStatus.textContent = '';
     elSave.disabled = false;
   }
 
+  const elSpeakOrig = popup.querySelector('#trans-obsidian-speak-orig');
+
   elClose.addEventListener('click', hidePopup);
 
-  document.addEventListener('mousedown', (e) => {
-    if (!popup.contains(e.target)) hidePopup();
+  elSpeakOrig.addEventListener('click', () => {
+    if (currentOriginal) speakText(currentOriginal, 'en', elSpeakOrig);
   });
 
-  document.addEventListener('mouseup', async (e) => {
-    if (popup.contains(e.target)) return;
+  let isMouseDown = false;
+  let pendingSelection = false;
 
-    const text = window.getSelection().toString().trim();
+  document.addEventListener('mousedown', (e) => {
+    isMouseDown = true;
+    if (!popup.contains(e.target)) hidePopup();
+  }, true);
+
+  document.addEventListener('mouseup', () => {
+    isMouseDown = false;
+    if (pendingSelection) {
+      pendingSelection = false;
+      handleSelection();
+    }
+  }, true);
+
+  let selectionTimer = null;
+  document.addEventListener('selectionchange', () => {
+    clearTimeout(selectionTimer);
+    selectionTimer = setTimeout(() => {
+      if (isMouseDown) {
+        pendingSelection = true;
+      } else {
+        handleSelection();
+      }
+    }, 100);
+  });
+
+  async function handleSelection() {
+    const sel = window.getSelection();
+    const text = sel.toString().trim();
     if (!text || text.length < CONFIG.MIN_LENGTH || text.length > CONFIG.MAX_LENGTH) return;
+    if (sel.rangeCount === 0) return;
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
 
     currentOriginal = text;
     currentTranslated = '';
@@ -331,7 +428,7 @@
     elResult.textContent = '翻译中...';
     elSave.disabled = true;
     elStatus.textContent = '';
-    showPopup(e.clientX, e.clientY);
+    showPopup(rect.right, rect.bottom);
 
     try {
       const result = await translate(text);
@@ -346,7 +443,7 @@
     } catch (err) {
       elResult.textContent = '翻译失败: ' + err;
     }
-  });
+  }
 
   elSave.addEventListener('click', async () => {
     if (!currentOriginal || !currentTranslated) return;
