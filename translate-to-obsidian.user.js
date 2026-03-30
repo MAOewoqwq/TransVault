@@ -19,7 +19,7 @@
     OBSIDIAN_API_KEY: '在这里填你的API_KEY',
     // Obsidian Local REST API 地址（默认不用改）
     OBSIDIAN_API_URL: 'http://127.0.0.1:27123',
-    // 保存到哪个笔记文件（vault 内的路径）
+    // 保存到哪个笔记文件（vault 内的路径）,此处填写用户自身创建的obsidian真实文件目录即可。
     NOTE_FOLDER: 'study.md/english',
     // 翻译 API 地址（Google Translate）
     TRANSLATE_API_URL: 'https://translate.googleapis.com/translate_a/single',
@@ -190,7 +190,8 @@
               });
               posInfo = parts.join('；');
             }
-            resolve({ translated, posInfo });
+            const detectedLang = data[2] || CONFIG.SOURCE_LANG;
+            resolve({ translated, posInfo, detectedLang });
           } catch {
             reject('解析翻译结果失败');
           }
@@ -359,6 +360,7 @@
   let currentOriginal = '';
   let currentTranslated = '';
   let currentPosInfo = '';
+  let currentLang = 'en';
 
   function showPopup(x, y) {
     const maxX = window.innerWidth - 360;
@@ -380,7 +382,7 @@
   elClose.addEventListener('click', hidePopup);
 
   elSpeakOrig.addEventListener('click', () => {
-    if (currentOriginal) speakText(currentOriginal, 'en', elSpeakOrig);
+    if (currentOriginal) speakText(currentOriginal, currentLang, elSpeakOrig);
   });
 
   let isMouseDown = false;
@@ -434,6 +436,7 @@
       const result = await translate(text);
       currentTranslated = result.translated;
       currentPosInfo = result.posInfo;
+      currentLang = result.detectedLang;
       if (currentPosInfo) {
         elResult.innerHTML = `${currentTranslated}<br><span style="color:#888;font-size:12px">${currentPosInfo}</span>`;
       } else {
